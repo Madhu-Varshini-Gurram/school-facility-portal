@@ -1,7 +1,7 @@
 # School Facility Condition Reporting & Repair Tracking Portal
 
 A full-stack web application built to report, monitor, and resolve physical infrastructure issues in schools (broken furniture, unsafe classrooms, sanitation, electrical hazards). This portal increases accountability and bridges the communication gap between parents, teachers, and school administrations.
-
+ 
 ---
 
 ## 🛠️ Technology Stack
@@ -66,7 +66,7 @@ Now, open your browser and navigate to: **`http://localhost:3000`**
 
 For easy testing, the following pre-configured demo accounts are available:
 
-### 🔑 Demo Credentials
+### 🔑  Demo Credentials
 * **School Administrator (Admin)**:
   - **Email**: `admin@school.org`
   - **Password**: `admin123`
