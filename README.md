@@ -1,7 +1,7 @@
 # School Facility Condition Reporting & Repair Tracking Portal
 
 A full-stack web application built to report, monitor, and resolve physical infrastructure issues in schools (broken furniture, unsafe classrooms, sanitation, electrical hazards). This portal increases accountability and bridges the communication gap between parents, teachers, and school administrations.
-
+ 
 ---
 
 ## 🛠️ Technology Stack
@@ -66,7 +66,7 @@ Now, open your browser and navigate to: **`http://localhost:3000`**
 
 For easy testing, the following pre-configured demo accounts are available:
 
-### 🔑 Demo Credentials
+### 🔑  Demo Credentials
 * **School Administrator (Admin)**:
   - **Email**: `admin@school.org`
   - **Password**: `admin123`
@@ -106,14 +106,3 @@ Follow these instructions to test the different user roles:
 4. Click **"Track"** to view the timeline showing the administrator's updates, assigned staff, and resolution time.
 5. In the Admin Panel, administrators can also click **"Export Repair Report (CSV)"** to instantly download a spreadsheet of the repair logs.
 
----
-
-## 📂 Architecture Details
-
-### Database Fallback Strategy (`server/config/db.js`)
-If `MONGO_URI` is defined in `server/.env`, Mongoose connects to MongoDB. Otherwise, the database client initializes a local JSON file (`server/data/db.json`) and replicates standard schema operations:
-- `db.users.create` / `db.users.findOne`
-- `db.issues.create` / `db.issues.find` / `db.issues.findByIdAndUpdate`
-- `db.notifications.create` / `db.notifications.find` / `db.notifications.findByIdAndUpdate`
-
-This allows seamless setup and full database capabilities locally.
