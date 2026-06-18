@@ -285,6 +285,7 @@ export default function AdminPanel({ token }) {
                   {arcs.filter(a => a.value > 0).map((arc, i) => (
                     <circle
                       key={i}
+                      className="donut-segment"
                       cx={cx}
                       cy={cy}
                       r={r}

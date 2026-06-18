@@ -2100,10 +2100,14 @@ h6 {
   color: var(--text-secondary);
 }
 
-.donut-legend-count {
-  color: var(--text-primary);
-  font-weight: 700;
-  font-size: 0.9rem;
+.donut-segment {
+  transition: transform 0.3s ease, stroke-width 0.3s ease;
+  cursor: pointer;
+}
+
+.donut-segment:hover {
+  stroke-width: 20;
+  transform: scale(1.05);
 }
 
 @media (max-width: 480px) {
