@@ -217,6 +217,103 @@ export default function AdminPanel({ token }) {
         </div>
       </div>
 
+      {/* ── New Charts Row ── */}
+      <div className="admin-charts-row animate-fade-in">
+        {/* Priority Breakdown */}
+        <div className="card admin-chart-card">
+          <h3 className="admin-section-title">Priority Breakdown</h3>
+          {loading ? (
+            <div className="skeleton" style={{ width: '100%', height: '40px', borderRadius: 'var(--radius-sm)', marginBottom: '0.75rem' }} />
+          ) : (() => {
+            const low = stats?.priorities?.low || 0;
+            const medium = stats?.priorities?.medium || 0;
+            const high = stats?.priorities?.high || 0;
+            const total = low + medium + high || 1;
+            const lowPct = Math.round((low / total) * 100);
+            const medPct = Math.round((medium / total) * 100);
+            const highPct = 100 - lowPct - medPct;
+            return (
+              <div>
+                <div className="priority-bar-track" role="img" aria-label={`Priority breakdown: ${low} low, ${medium} medium, ${high} high`}>
+                  {low > 0 && <div className="priority-bar-segment priority-bar-low" style={{ width: `${lowPct}%` }} title={`Low: ${low}`}><span>{lowPct}%</span></div>}
+                  {medium > 0 && <div className="priority-bar-segment priority-bar-medium" style={{ width: `${medPct}%` }} title={`Medium: ${medium}`}><span>{medPct}%</span></div>}
+                  {high > 0 && <div className="priority-bar-segment priority-bar-high" style={{ width: `${highPct}%` }} title={`High: ${high}`}><span>{highPct}%</span></div>}
+                  {(low + medium + high) === 0 && <div className="priority-bar-segment" style={{ width: '100%', background: 'var(--border-color)', opacity: 0.4 }} />}
+                </div>
+                <div className="priority-bar-legend">
+                  <span className="priority-legend-item"><span className="priority-legend-dot" style={{ background: 'var(--priority-low)' }} />Low: <strong>{low}</strong></span>
+                  <span className="priority-legend-item"><span className="priority-legend-dot" style={{ background: 'var(--priority-medium)' }} />Medium: <strong>{medium}</strong></span>
+                  <span className="priority-legend-item"><span className="priority-legend-dot" style={{ background: 'var(--priority-high)' }} />High: <strong>{high}</strong></span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Status Distribution Donut */}
+        <div className="card admin-chart-card">
+          <h3 className="admin-section-title">Status Distribution</h3>
+          {loading ? (
+            <div className="donut-chart-wrap">
+              <div className="skeleton skeleton-circle" style={{ width: '130px', height: '130px' }} />
+            </div>
+          ) : (() => {
+            const pending = stats?.pending || 0;
+            const inProgress = stats?.inProgress || 0;
+            const resolved = stats?.resolved || 0;
+            const total = pending + inProgress + resolved || 1;
+            const r = 54;
+            const cx = 70;
+            const cy = 70;
+            const circumference = 2 * Math.PI * r;
+            const segments = [
+              { value: pending, color: 'var(--status-pending)', label: 'Pending' },
+              { value: inProgress, color: 'var(--status-inprogress)', label: 'In Progress' },
+              { value: resolved, color: 'var(--status-resolved)', label: 'Resolved' },
+            ];
+            let offset = 0;
+            const arcs = segments.map((seg) => {
+              const dash = (seg.value / total) * circumference;
+              const arc = { ...seg, dash, offset };
+              offset += dash;
+              return arc;
+            });
+            return (
+              <div className="donut-chart-wrap">
+                <svg width="140" height="140" viewBox="0 0 140 140" aria-label="Status distribution donut chart">
+                  <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--border-color)" strokeWidth="16" />
+                  {arcs.filter(a => a.value > 0).map((arc, i) => (
+                    <circle
+                      key={i}
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      fill="none"
+                      stroke={arc.color}
+                      strokeWidth="16"
+                      strokeDasharray={`${arc.dash} ${circumference - arc.dash}`}
+                      strokeDashoffset={-arc.offset}
+                      style={{ transform: 'rotate(-90deg)', transformOrigin: `${cx}px ${cy}px`, transition: 'stroke-dasharray 0.6s ease' }}
+                    />
+                  ))}
+                  <text x={cx} y={cy - 6} textAnchor="middle" fontSize="22" fontWeight="800" fill="var(--text-primary)">{pending + inProgress + resolved}</text>
+                  <text x={cx} y={cy + 12} textAnchor="middle" fontSize="10" fill="var(--text-muted)">Total</text>
+                </svg>
+                <div className="donut-legend">
+                  {segments.map((seg, i) => (
+                    <div key={i} className="donut-legend-item">
+                      <span className="donut-legend-dot" style={{ background: seg.color }} />
+                      <span className="donut-legend-label">{seg.label}</span>
+                      <strong className="donut-legend-count">{seg.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </div>
+
       <div className="card animate-fade-in" style={{ padding: '1.5rem 0' }}>
         <div className="directory-header">
           <h3 style={{ fontSize: '1.3rem' }}>Infrastructure Repair Directory</h3>
