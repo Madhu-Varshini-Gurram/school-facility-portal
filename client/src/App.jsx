@@ -135,11 +135,6 @@ function AppRoutes() {
           />
 
           <Route
-            path="/forgot-password"
-            element={!token ? <Login onLogin={handleLogin} mode="forgot" /> : <Navigate to="/dashboard" replace />}
-          />
-
-          <Route
             path="/dashboard"
             element={token ? <Dashboard user={user} token={token} /> : <Navigate to="/login" replace />}
           />
