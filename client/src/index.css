@@ -2101,13 +2101,17 @@ h6 {
 }
 
 .donut-segment {
-  transition: transform 0.3s ease, stroke-width 0.3s ease;
+  transition: stroke-width 0.3s ease, transform 0.3s ease;
   cursor: pointer;
+  pointer-events: visiblePainted;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .donut-segment:hover {
-  stroke-width: 20;
-  transform: scale(1.05);
+  stroke-width: 22;
+  transform: scale(1.12) !important;
+  filter: drop-shadow(0 0 4px var(--color-primary));
 }
 
 @media (max-width: 480px) {
