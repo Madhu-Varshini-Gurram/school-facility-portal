@@ -26,6 +26,16 @@ export default function Login({ onLogin, mode = 'login' }) {
     setSuccess('');
   }, [mode]);
 
+  const getPasswordCriteria = (pwd) => {
+    return {
+      length: (pwd || '').length >= 8,
+      uppercase: /[A-Z]/.test(pwd || ''),
+      lowercase: /[a-z]/.test(pwd || ''),
+      number: /\d/.test(pwd || ''),
+      special: /[^A-Za-z0-9]/.test(pwd || '')
+    };
+  };
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -35,20 +45,18 @@ export default function Login({ onLogin, mode = 'login' }) {
     setError('');
     setSuccess('');
 
-    if (isRegister && formData.password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
+    if (isRegister || isForgot) {
+      const criteria = getPasswordCriteria(formData.password);
+      const isStrong = Object.values(criteria).every(Boolean);
+      if (!isStrong) {
+        setError('Password must be at least 8 characters and include uppercase, lowercase, numbers, and special characters.');
+        return;
+      }
     }
 
-    if (isForgot) {
-      if (!formData.password || formData.password.length < 6) {
-        setError('Password must be at least 6 characters.');
-        return;
-      }
-      if (formData.password !== formData.confirmPassword) {
-        setError('Passwords do not match.');
-        return;
-      }
+    if (isForgot && formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
     }
 
     setLoading(true);
@@ -192,7 +200,7 @@ export default function Login({ onLogin, mode = 'login' }) {
                 value={formData.password}
                 onChange={handleChange}
                 required
-                minLength={isRegister || isForgot ? 6 : undefined}
+                minLength={isRegister || isForgot ? 8 : undefined}
                 autoComplete={isForgot || isRegister ? 'new-password' : 'current-password'}
               />
               <button
@@ -204,6 +212,28 @@ export default function Login({ onLogin, mode = 'login' }) {
                 {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
               </button>
             </div>
+            {(isRegister || isForgot) && formData.password && (
+              <div className="password-strength-checklist" style={{ marginTop: '0.65rem', padding: '0.75rem', borderRadius: 'var(--radius-sm)', backgroundColor: 'rgba(30, 41, 59, 0.4)', border: '1px solid var(--border-color)', fontSize: '0.8rem' }}>
+                <div style={{ fontWeight: 600, marginBottom: '0.4rem', color: 'var(--text-secondary)' }}>Password Requirements:</div>
+                <ul style={{ listStyle: 'none', paddingLeft: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  <li style={{ color: getPasswordCriteria(formData.password).length ? 'var(--status-resolved)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', transition: 'color var(--transition-fast)' }}>
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{getPasswordCriteria(formData.password).length ? '✔' : '○'}</span> At least 8 characters
+                  </li>
+                  <li style={{ color: getPasswordCriteria(formData.password).uppercase ? 'var(--status-resolved)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', transition: 'color var(--transition-fast)' }}>
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{getPasswordCriteria(formData.password).uppercase ? '✔' : '○'}</span> At least one uppercase letter
+                  </li>
+                  <li style={{ color: getPasswordCriteria(formData.password).lowercase ? 'var(--status-resolved)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', transition: 'color var(--transition-fast)' }}>
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{getPasswordCriteria(formData.password).lowercase ? '✔' : '○'}</span> At least one lowercase letter
+                  </li>
+                  <li style={{ color: getPasswordCriteria(formData.password).number ? 'var(--status-resolved)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', transition: 'color var(--transition-fast)' }}>
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{getPasswordCriteria(formData.password).number ? '✔' : '○'}</span> At least one number
+                  </li>
+                  <li style={{ color: getPasswordCriteria(formData.password).special ? 'var(--status-resolved)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', transition: 'color var(--transition-fast)' }}>
+                    <span style={{ fontSize: '1rem', lineHeight: 1 }}>{getPasswordCriteria(formData.password).special ? '✔' : '○'}</span> At least one special character
+                  </li>
+                </ul>
+              </div>
+            )}
           </div>
 
           {isForgot && (

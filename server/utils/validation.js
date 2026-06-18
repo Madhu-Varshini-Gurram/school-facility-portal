@@ -21,6 +21,15 @@ function isOneOf(val, allowed) {
   return typeof val === 'string' && allowed.includes(val);
 }
 
+function isStrongPassword(val) {
+  if (typeof val !== 'string') return false;
+  return val.length >= 8 &&
+         /[a-z]/.test(val) &&
+         /[A-Z]/.test(val) &&
+         /\d/.test(val) &&
+         /[^a-zA-Z0-9]/.test(val);
+}
+
 module.exports = {
   VALID_ROLES,
   PUBLIC_ROLES,
@@ -30,5 +39,6 @@ module.exports = {
   isNonEmptyString,
   isEmail,
   sanitizeQueryString,
-  isOneOf
+  isOneOf,
+  isStrongPassword
 };

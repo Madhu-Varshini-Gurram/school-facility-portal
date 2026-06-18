@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const auth = require('../middleware/auth');
-const { isNonEmptyString, isEmail, isOneOf, VALID_ROLES } = require('../utils/validation');
+const { isNonEmptyString, isEmail, isOneOf, VALID_ROLES, isStrongPassword } = require('../utils/validation');
 
 const signToken = (payload) => new Promise((resolve, reject) => {
   jwt.sign(payload, auth.getJwtSecret(), { expiresIn: '7d' }, (err, token) => {
@@ -32,8 +32,8 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ message: 'Please provide valid name, email, password, role, and school ID' });
   }
 
-  if (password.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters' });
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
   }
 
   try {
@@ -139,8 +139,8 @@ router.post('/forgot-password', async (req, res) => {
     return res.status(400).json({ message: 'Please provide valid email, school ID, and new password' });
   }
 
-  if (newPassword.length < 6) {
-    return res.status(400).json({ message: 'Password must be at least 6 characters' });
+  if (!isStrongPassword(newPassword)) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character.' });
   }
 
   try {

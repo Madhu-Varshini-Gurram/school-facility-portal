@@ -73,7 +73,7 @@ async function runTests() {
     const regParentRes = await request('/api/auth/register', 'POST', {}, {
       name: 'Parent Tester',
       email: parentEmail,
-      password: 'password123',
+      password: 'Password123!',
       role: 'parent',
       schoolId: schoolId
     });
@@ -90,7 +90,7 @@ async function runTests() {
     const regAdminRes = await request('/api/auth/register', 'POST', {}, {
       name: 'Admin Tester',
       email: adminEmail,
-      password: 'adminpassword123',
+      password: 'Adminpassword123!',
       role: 'admin',
       schoolId: schoolId
     });
@@ -106,7 +106,7 @@ async function runTests() {
     console.log('[Step 3] Logging in as Parent...');
     const loginParentRes = await request('/api/auth/login', 'POST', {}, {
       email: parentEmail,
-      password: 'password123'
+      password: 'Password123!'
     });
 
     if (loginParentRes.statusCode !== 200) {
