@@ -2109,9 +2109,8 @@ h6 {
 }
 
 .donut-segment:hover {
-  stroke-width: 22;
-  transform: scale(1.12) !important;
-  filter: drop-shadow(0 0 4px var(--color-primary));
+  transform: scale(1.05) !important;
+  filter: brightness(1.15);
 }
 
 @media (max-width: 480px) {
