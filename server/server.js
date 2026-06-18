@@ -5,15 +5,16 @@ const rateLimit = require('express-rate-limit');
 const dotenv = require('dotenv');
 const db = require('./config/db');
 
-// Load environment variables
 dotenv.config();
 
 const app = express();
 
-// ── Security: HTTP headers ────────────────────────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.use(helmet());
 
-// ── Security: CORS ────────────────────────────────────────────────────────────
 const allowedOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:3000';
 app.use(cors({
   origin: allowedOrigin,
@@ -22,22 +23,18 @@ app.use(cors({
   credentials: true
 }));
 
-// ── Body Parser ───────────────────────────────────────────────────────────────
-app.use(express.json({ limit: '6mb' })); // allow base64 images up to ~5 MB
+app.use(express.json({ limit: '6mb' }));
 
-// ── Rate Limiting ─────────────────────────────────────────────────────────────
-// General API limiter
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: 'Too many requests, please try again later.' }
 });
 
-// Stricter limiter for auth routes (prevent brute-force)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 20,
   standardHeaders: true,
   legacyHeaders: false,
@@ -46,26 +43,29 @@ const authLimiter = rateLimit({
 
 app.use('/api/', apiLimiter);
 
-// ── Routes Registration ───────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter, require('./routes/auth'));
 app.use('/api/issues', require('./routes/issues'));
 app.use('/api/notifications', require('./routes/notifications'));
 
-// ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({
-    message: 'School Facility Condition Reporting & Repair Tracking API is running.',
-    environment: process.env.NODE_ENV || 'development'
+    message: 'School Facility Condition Reporting & Repair Tracking API is running.'
   });
 });
 
-// ── Port ──────────────────────────────────────────────────────────────────────
+app.use((req, res) => {
+  res.status(404).json({ message: 'Route not found' });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err.message);
+  res.status(500).json({ message: 'Server error' });
+});
+
 const PORT = process.env.PORT || 5000;
 
-// ── Start ─────────────────────────────────────────────────────────────────────
 const startServer = async () => {
   try {
-    // Enforce strong JWT secret in production
     if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
       throw new Error('JWT_SECRET environment variable is required in production.');
     }
@@ -82,3 +82,5 @@ const startServer = async () => {
 };
 
 startServer();
+// Trigger reload
+

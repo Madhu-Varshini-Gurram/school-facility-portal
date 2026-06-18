@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Upload, AlertCircle, Camera, Check } from 'lucide-react';
+import { apiFetch } from '../api';
 
 export default function ReportIssue({ token }) {
   const [formData, setFormData] = useState({
@@ -15,14 +16,13 @@ export default function ReportIssue({ token }) {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [submitted, setSubmitted] = useState(false);
-  
+
   const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  // Process selected image file, convert to base64 string for preview and upload
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -31,11 +31,11 @@ export default function ReportIssue({ token }) {
         return;
       }
       setError('');
-      
+
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreview(reader.result);
-        setFormData({ ...formData, image: reader.result });
+        setFormData(prev => ({ ...prev, image: reader.result }));
       };
       reader.readAsDataURL(file);
     }
@@ -44,17 +44,16 @@ export default function ReportIssue({ token }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
-    // Quick custom validations
-    if (formData.title.length < 5) {
+
+    if (formData.title.trim().length < 5) {
       setError('Please provide a descriptive title (at least 5 characters).');
       return;
     }
-    if (formData.description.length < 15) {
+    if (formData.description.trim().length < 15) {
       setError('Please provide more description details (at least 15 characters).');
       return;
     }
-    if (!formData.location) {
+    if (!formData.location.trim()) {
       setError('Please specify the exact location of the infrastructure issue.');
       return;
     }
@@ -62,20 +61,10 @@ export default function ReportIssue({ token }) {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/issues', {
+      await apiFetch('/api/issues', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify(formData)
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to submit report');
-      }
+      }, token);
 
       setSubmitted(true);
       setFormData({
@@ -90,7 +79,6 @@ export default function ReportIssue({ token }) {
       setTimeout(() => {
         navigate('/dashboard');
       }, 1500);
-
     } catch (err) {
       setError(err.message || 'Something went wrong while reporting the issue.');
     } finally {
@@ -100,20 +88,10 @@ export default function ReportIssue({ token }) {
 
   if (submitted) {
     return (
-      <div className="content-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div className="card animate-fade-in" style={{ textAlign: 'center', maxWidth: '400px', padding: '3rem 2rem' }}>
-          <div style={{
-            width: '60px',
-            height: '60px',
-            borderRadius: '50%',
-            backgroundColor: 'var(--status-resolved-light)',
-            color: 'var(--status-resolved)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 1.5rem auto'
-          }}>
-            <Check size={36} />
+      <div className="content-container success-page">
+        <div className="card animate-fade-in success-card" role="status">
+          <div className="success-icon">
+            <Check size={36} aria-hidden="true" />
           </div>
           <h2 style={{ fontSize: '1.75rem', marginBottom: '0.75rem' }}>Report Submitted!</h2>
           <p style={{ color: 'var(--text-secondary)' }}>
@@ -125,49 +103,37 @@ export default function ReportIssue({ token }) {
   }
 
   return (
-    <div className="content-container" style={{ maxWidth: '800px' }}>
-      {/* Back button */}
-      <button 
-        onClick={() => navigate('/dashboard')} 
+    <div className="content-container report-page">
+      <button
+        type="button"
+        onClick={() => navigate('/dashboard')}
         className="btn btn-secondary"
         style={{ marginBottom: '1.5rem', padding: '0.4rem 1rem' }}
       >
-        <ArrowLeft size={16} />
+        <ArrowLeft size={16} aria-hidden="true" />
         <span>Back to Dashboard</span>
       </button>
 
       <div style={{ marginBottom: '2rem' }}>
-        <h1 style={{ fontSize: '2.2rem', marginBottom: '0.25rem' }}>Report Infrastructure Issue</h1>
+        <h1 className="page-title">Report Infrastructure Issue</h1>
         <p style={{ color: 'var(--text-secondary)' }}>
           Help us maintain a safe school environment by providing detailed, accurate reports of infrastructure damage.
         </p>
       </div>
 
       {error && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.75rem',
-          backgroundColor: 'var(--status-pending-light)',
-          color: 'var(--status-pending)',
-          padding: '0.75rem 1rem',
-          borderRadius: 'var(--radius-sm)',
-          marginBottom: '1.5rem',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          fontSize: '0.9rem'
-        }}>
-          <AlertCircle size={18} style={{ flexShrink: 0 }} />
+        <div className="alert-error" role="alert">
+          <AlertCircle size={18} aria-hidden="true" style={{ flexShrink: 0 }} />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="grid grid-2 animate-fade-in" style={{ gap: '2rem' }}>
-        
-        {/* Form elements */}
-        <form onSubmit={handleSubmit} className="card" style={{ padding: '2rem' }}>
+      <div className="grid grid-2 animate-fade-in report-grid">
+        <form onSubmit={handleSubmit} className="card report-form" noValidate>
           <div className="form-group">
-            <label className="form-label">Issue Title</label>
+            <label className="form-label" htmlFor="title">Issue Title</label>
             <input
+              id="title"
               type="text"
               name="title"
               placeholder="e.g., Broken fan in Classroom 3B"
@@ -175,12 +141,14 @@ export default function ReportIssue({ token }) {
               value={formData.title}
               onChange={handleChange}
               required
+              minLength={5}
             />
           </div>
 
           <div className="form-group">
-            <label className="form-label">Category</label>
+            <label className="form-label" htmlFor="category">Category</label>
             <select
+              id="category"
               name="category"
               className="input-control"
               value={formData.category}
@@ -196,8 +164,9 @@ export default function ReportIssue({ token }) {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Exact Location</label>
+            <label className="form-label" htmlFor="location">Exact Location</label>
             <input
+              id="location"
               type="text"
               name="location"
               placeholder="e.g., Main building, Floor 2, Room 204"
@@ -208,44 +177,29 @@ export default function ReportIssue({ token }) {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Priority Level</label>
-            <div style={{ display: 'flex', gap: '1rem' }}>
+          <fieldset className="form-group priority-fieldset">
+            <legend className="form-label">Priority Level</legend>
+            <div className="priority-options">
               {['low', 'medium', 'high'].map((lvl) => (
-                <label key={lvl} style={{
-                  flex: '1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0.6rem 0.5rem',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: formData.priority === lvl ? `var(--status-${lvl === 'low' ? 'resolved' : lvl === 'medium' ? 'inprogress' : 'pending'}-light)` : 'var(--bg-input)',
-                  color: formData.priority === lvl ? `var(--status-${lvl === 'low' ? 'resolved' : lvl === 'medium' ? 'inprogress' : 'pending'})` : 'var(--text-secondary)',
-                  borderColor: formData.priority === lvl ? `var(--status-${lvl === 'low' ? 'resolved' : lvl === 'medium' ? 'inprogress' : 'pending'})` : 'var(--border-color)',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  fontSize: '0.8rem',
-                  transition: 'all var(--transition-fast)'
-                }}>
+                <label key={lvl} className={`priority-option priority-option-${lvl} ${formData.priority === lvl ? 'selected' : ''}`}>
                   <input
                     type="radio"
                     name="priority"
                     value={lvl}
                     checked={formData.priority === lvl}
                     onChange={handleChange}
-                    style={{ display: 'none' }}
+                    className="sr-only"
                   />
                   {lvl}
                 </label>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div className="form-group">
-            <label className="form-label">Description Details</label>
+            <label className="form-label" htmlFor="description">Description Details</label>
             <textarea
+              id="description"
               name="description"
               rows="4"
               placeholder="Provide a description of the condition, safety issues, and what needs repair..."
@@ -253,39 +207,29 @@ export default function ReportIssue({ token }) {
               value={formData.description}
               onChange={handleChange}
               required
-            ></textarea>
+              minLength={15}
+            />
           </div>
 
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
+          <button
+            type="submit"
+            className="btn btn-primary"
             style={{ width: '100%', marginTop: '1rem' }}
-            disabled={loading || submitted}
+            disabled={loading}
           >
-            <Send size={18} />
+            <Send size={18} aria-hidden="true" />
             <span>{loading ? 'Submitting Report...' : 'Submit Condition Report'}</span>
           </button>
         </form>
 
-        {/* Media upload column */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          <div className="card" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: '2px', flex: '1', minHeight: '300px' }}>
+        <div className="report-upload-column">
+          <div className="card upload-dropzone">
             {preview ? (
-              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
-                <img 
-                  src={preview} 
-                  alt="Issue preview" 
-                  style={{
-                    width: '100%',
-                    maxHeight: '260px',
-                    objectFit: 'cover',
-                    borderRadius: 'var(--radius-sm)',
-                    border: '1px solid var(--border-color)',
-                    marginBottom: '1rem'
-                  }} 
-                />
-                <button 
-                  onClick={() => { setPreview(null); setFormData({ ...formData, image: '' }); }}
+              <div className="upload-preview">
+                <img src={preview} alt="Preview of uploaded issue photo" className="upload-preview-img" />
+                <button
+                  type="button"
+                  onClick={() => { setPreview(null); setFormData(prev => ({ ...prev, image: '' })); }}
                   className="btn btn-danger"
                   style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
                 >
@@ -294,40 +238,30 @@ export default function ReportIssue({ token }) {
               </div>
             ) : (
               <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--bg-input)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  margin: '0 auto 1rem auto',
-                  color: 'var(--text-secondary)'
-                }}>
-                  <Camera size={28} />
+                <div className="upload-icon-circle">
+                  <Camera size={28} aria-hidden="true" />
                 </div>
                 <h4 style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>Upload Photo of Condition</h4>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', maxWidth: '240px', margin: '0 auto 1.5rem auto' }}>
                   Upload clear photos showing the damage to help repairs teams understand what tools are required.
                 </p>
-                <label className="btn btn-secondary" style={{ cursor: 'pointer' }}>
-                  <Upload size={16} />
+                <label className="btn btn-secondary upload-label">
+                  <Upload size={16} aria-hidden="true" />
                   <span>Choose Photo</span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp"
                     onChange={handleImageChange}
-                    style={{ display: 'none' }}
+                    className="sr-only"
                   />
                 </label>
               </div>
             )}
           </div>
-          
-          <div className="card" style={{ padding: '1.5rem', backgroundColor: 'rgba(30, 41, 59, 0.2)' }}>
-            <h4 style={{ fontSize: '1rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <AlertCircle size={16} style={{ color: 'var(--color-primary)' }} />
+
+          <div className="card guideline-card">
+            <h4 className="guideline-title">
+              <AlertCircle size={16} aria-hidden="true" style={{ color: 'var(--color-primary)' }} />
               Important Guideline
             </h4>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
@@ -335,7 +269,6 @@ export default function ReportIssue({ token }) {
             </p>
           </div>
         </div>
-
       </div>
     </div>
   );

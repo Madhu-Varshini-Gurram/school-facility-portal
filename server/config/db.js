@@ -5,6 +5,28 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+function validateMongoQuery(query) {
+  if (!query) return true;
+  const idFields = ['_id', 'recipient', 'reporter', 'issueId'];
+  if (query.email !== undefined && query.email !== null && typeof query.email !== 'string') {
+    return false;
+  }
+  for (const field of idFields) {
+    if (query[field] !== undefined && query[field] !== null) {
+      const val = query[field];
+      if (typeof val === 'string' && !mongoose.Types.ObjectId.isValid(val)) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function validateMongoId(id) {
+  if (!id) return false;
+  return mongoose.Types.ObjectId.isValid(id);
+}
+
 const useMongo = !!process.env.MONGO_URI;
 const jsonDbPath = path.join(__dirname, '..', 'data', 'db.json');
 
@@ -108,6 +130,7 @@ const db = {
   users: {
     find: async (query = {}) => {
       if (db.isMongo) {
+        if (!validateMongoQuery(query)) return [];
         return await UserModel.find(query).lean();
       } else {
         const localData = readLocalDb();
@@ -118,6 +141,7 @@ const db = {
     },
     findOne: async (query = {}) => {
       if (db.isMongo) {
+        if (!validateMongoQuery(query)) return null;
         return await UserModel.findOne(query).lean();
       } else {
         const localData = readLocalDb();
@@ -129,6 +153,7 @@ const db = {
     },
     findById: async (id) => {
       if (db.isMongo) {
+        if (!validateMongoId(id)) return null;
         return await UserModel.findById(id).lean();
       } else {
         const localData = readLocalDb();
@@ -144,7 +169,7 @@ const db = {
       } else {
         const localData = readLocalDb();
         const newUser = {
-          _id: 'u_' + Math.random().toString(36).substr(2, 9),
+          _id: 'u_' + Math.random().toString(36).slice(2, 11),
           ...data,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
@@ -153,12 +178,33 @@ const db = {
         writeLocalDb(localData);
         return newUser;
       }
+    },
+    findByIdAndUpdate: async (id, updateData) => {
+      if (db.isMongo) {
+        if (!validateMongoId(id)) return null;
+        return await UserModel.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
+      } else {
+        const localData = readLocalDb();
+        const index = localData.users.findIndex(item => item._id === id);
+        if (index === -1) return null;
+
+        const original = localData.users[index];
+        const updated = {
+          ...original,
+          ...updateData,
+          updatedAt: new Date().toISOString()
+        };
+        localData.users[index] = updated;
+        writeLocalDb(localData);
+        return updated;
+      }
     }
   },
 
   issues: {
     find: async (query = {}) => {
       if (db.isMongo) {
+        if (!validateMongoQuery(query)) return [];
         return await IssueModel.find(query).sort({ createdAt: -1 }).lean();
       } else {
         const localData = readLocalDb();
@@ -178,6 +224,7 @@ const db = {
     },
     findById: async (id) => {
       if (db.isMongo) {
+        if (!validateMongoId(id)) return null;
         return await IssueModel.findById(id).lean();
       } else {
         const localData = readLocalDb();
@@ -202,7 +249,7 @@ const db = {
         const localData = readLocalDb();
         const now = new Date().toISOString();
         const newIssue = {
-          _id: 'i_' + Math.random().toString(36).substr(2, 9),
+          _id: 'i_' + Math.random().toString(36).slice(2, 11),
           status: 'pending',
           assignedStaff: '',
           estimatedResolutionTime: '',
@@ -222,6 +269,7 @@ const db = {
     },
     findByIdAndUpdate: async (id, updateData) => {
       if (db.isMongo) {
+        if (!validateMongoId(id)) return null;
         // If appending a timeline event, use $push
         if (updateData.$push && updateData.$push.timeline) {
           return await IssueModel.findByIdAndUpdate(
@@ -233,7 +281,7 @@ const db = {
             { new: true }
           ).lean();
         }
-        return await IssueModel.findByIdAndUpdate(id, updateData, { new: true }).lean();
+        return await IssueModel.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
       } else {
         const localData = readLocalDb();
         const index = localData.issues.findIndex(item => item._id === id);
@@ -268,6 +316,7 @@ const db = {
   notifications: {
     find: async (query = {}) => {
       if (db.isMongo) {
+        if (!validateMongoQuery(query)) return [];
         return await NotificationModel.find(query).sort({ createdAt: -1 }).lean();
       } else {
         const localData = readLocalDb();
@@ -279,6 +328,7 @@ const db = {
     },
     findById: async (id) => {
       if (db.isMongo) {
+        if (!validateMongoId(id)) return null;
         return await NotificationModel.findById(id).lean();
       } else {
         const localData = readLocalDb();
@@ -295,7 +345,7 @@ const db = {
         const localData = readLocalDb();
         const now = new Date().toISOString();
         const newNotification = {
-          _id: 'n_' + Math.random().toString(36).substr(2, 9),
+          _id: 'n_' + Math.random().toString(36).slice(2, 11),
           read: false,
           ...data,
           createdAt: now,
@@ -308,7 +358,8 @@ const db = {
     },
     findByIdAndUpdate: async (id, updateData) => {
       if (db.isMongo) {
-        return await NotificationModel.findByIdAndUpdate(id, updateData, { new: true }).lean();
+        if (!validateMongoId(id)) return null;
+        return await NotificationModel.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).lean();
       } else {
         const localData = readLocalDb();
         const index = localData.notifications.findIndex(item => item._id === id);

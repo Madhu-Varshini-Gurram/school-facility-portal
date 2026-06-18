@@ -4,6 +4,22 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../config/db');
 const auth = require('../middleware/auth');
+const { isNonEmptyString, isEmail, isOneOf, VALID_ROLES } = require('../utils/validation');
+
+const signToken = (payload) => new Promise((resolve, reject) => {
+  jwt.sign(payload, auth.getJwtSecret(), { expiresIn: '7d' }, (err, token) => {
+    if (err) reject(err);
+    else resolve(token);
+  });
+});
+
+const buildUserResponse = (user) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  schoolId: user.schoolId
+});
 
 // @route   POST api/auth/register
 // @desc    Register a user
@@ -11,32 +27,40 @@ const auth = require('../middleware/auth');
 router.post('/register', async (req, res) => {
   const { name, email, password, role, schoolId } = req.body;
 
-  // Simple validation
-  if (!name || !email || !password || !role || !schoolId) {
-    return res.status(400).json({ message: 'Please enter all fields' });
+  if (!isNonEmptyString(name, 100) || !isEmail(email) || !isNonEmptyString(password, 128)
+    || !isOneOf(role, VALID_ROLES) || !isNonEmptyString(schoolId, 50)) {
+    return res.status(400).json({ message: 'Please provide valid name, email, password, role, and school ID' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters' });
   }
 
   try {
-    // Check for existing user
-    const userExists = await db.users.findOne({ email });
+    const normalizedEmail = email.trim().toLowerCase();
+    const userExists = await db.users.findOne({ email: normalizedEmail });
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'Unable to create account with these details' });
     }
 
-    // Hash password
+    if (role === 'admin') {
+      const adminExists = await db.users.findOne({ role: 'admin', schoolId: schoolId.trim() });
+      if (adminExists) {
+        return res.status(400).json({ message: 'An administrator already exists for this school' });
+      }
+    }
+
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create user
     const newUser = await db.users.create({
-      name,
-      email,
+      name: name.trim(),
+      email: normalizedEmail,
       password: hashedPassword,
       role,
-      schoolId
+      schoolId: schoolId.trim()
     });
 
-    // Sign JWT Token
     const payload = {
       id: newUser._id,
       name: newUser.name,
@@ -44,27 +68,11 @@ router.post('/register', async (req, res) => {
       schoolId: newUser.schoolId
     };
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({
-          token,
-          user: {
-            id: newUser._id,
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role,
-            schoolId: newUser.schoolId
-          }
-        });
-      }
-    );
+    const token = await signToken(payload);
+    res.json({ token, user: buildUserResponse(newUser) });
   } catch (err) {
     console.error('Registration error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -74,25 +82,21 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // Simple validation
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Please enter all fields' });
+  if (!isEmail(email) || typeof password !== 'string' || !password) {
+    return res.status(400).json({ message: 'Please enter a valid email and password' });
   }
 
   try {
-    // Check for user
-    const user = await db.users.findOne({ email });
+    const user = await db.users.findOne({ email: email.trim().toLowerCase() });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Validate password
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Sign JWT Token
     const payload = {
       id: user._id,
       name: user.name,
@@ -100,27 +104,11 @@ router.post('/login', async (req, res) => {
       schoolId: user.schoolId
     };
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' },
-      (err, token) => {
-        if (err) throw err;
-        res.json({
-          token,
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            schoolId: user.schoolId
-          }
-        });
-      }
-    );
+    const token = await signToken(payload);
+    res.json({ token, user: buildUserResponse(user) });
   } catch (err) {
     console.error('Login error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -133,12 +121,45 @@ router.get('/me', auth, async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    // Don't return password
     const { password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
   } catch (err) {
     console.error('Me query error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   POST api/auth/forgot-password
+// @desc    Reset password by verifying email and school ID
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
+  const { email, schoolId, newPassword } = req.body;
+
+  if (!isEmail(email) || !isNonEmptyString(schoolId, 50) || !isNonEmptyString(newPassword, 128)) {
+    return res.status(400).json({ message: 'Please provide valid email, school ID, and new password' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters' });
+  }
+
+  try {
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await db.users.findOne({ email: normalizedEmail, schoolId: schoolId.trim() });
+
+    if (!user) {
+      return res.status(400).json({ message: 'No matching account found with these details' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await db.users.findByIdAndUpdate(user._id, { password: hashedPassword });
+
+    res.json({ message: 'Password reset successful' });
+  } catch (err) {
+    console.error('Forgot password error:', err.message);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

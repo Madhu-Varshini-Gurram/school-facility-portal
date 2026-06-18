@@ -68,11 +68,11 @@ For easy testing, the following pre-configured demo accounts are available:
 
 ### 🔑 Demo Credentials
 * **School Administrator (Admin)**:
-  - **Email**: `admin@oakridge.edu`
+  - **Email**: `admin@school.org`
   - **Password**: `admin123`
   - **School ID**: `SCH-90210`
 * **Parent / Teacher (User)**:
-  - **Email**: `parent@oakridge.edu`
+  - **Email**: `parent@school.org`
   - **Password**: `parent123`
   - **School ID**: `SCH-90210`
 

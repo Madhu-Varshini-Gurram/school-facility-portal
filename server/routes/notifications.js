@@ -12,28 +12,7 @@ router.get('/', auth, async (req, res) => {
     res.json(notifications);
   } catch (err) {
     console.error('Fetch notifications error:', err.message);
-    res.status(500).send('Server error');
-  }
-});
-
-// @route   PUT api/notifications/:id
-// @desc    Mark a notification as read
-// @access  Private
-router.put('/:id', auth, async (req, res) => {
-  try {
-    const notification = await db.notifications.findById(req.params.id);
-    if (!notification) {
-      return res.status(404).json({ message: 'Notification not found' });
-    }
-    // Security: ensure only the intended recipient can mark it read
-    if (String(notification.recipient) !== String(req.user.id)) {
-      return res.status(403).json({ message: 'Access denied: this notification does not belong to you.' });
-    }
-    const updated = await db.notifications.findByIdAndUpdate(req.params.id, { read: true });
-    res.json(updated);
-  } catch (err) {
-    console.error('Mark notification read error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -51,7 +30,27 @@ router.put('/read/all', auth, async (req, res) => {
     res.json({ message: 'All notifications marked as read', count: updated.length });
   } catch (err) {
     console.error('Mark all notifications read error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// @route   PUT api/notifications/:id
+// @desc    Mark a notification as read
+// @access  Private
+router.put('/:id', auth, async (req, res) => {
+  try {
+    const notification = await db.notifications.findById(req.params.id);
+    if (!notification) {
+      return res.status(404).json({ message: 'Notification not found' });
+    }
+    if (String(notification.recipient) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'Access denied: this notification does not belong to you.' });
+    }
+    const updated = await db.notifications.findByIdAndUpdate(req.params.id, { read: true });
+    res.json(updated);
+  } catch (err) {
+    console.error('Mark notification read error:', err.message);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

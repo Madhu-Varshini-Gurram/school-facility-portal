@@ -2,24 +2,45 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
 const auth = require('../middleware/auth');
+const {
+  isNonEmptyString,
+  isOneOf,
+  sanitizeQueryString,
+  VALID_STATUSES,
+  VALID_PRIORITIES,
+  VALID_CATEGORIES
+} = require('../utils/validation');
 
 // @route   GET api/issues
 // @desc    Get all issues for the user's school with optional filters
 // @access  Private
 router.get('/', auth, async (req, res) => {
-  const { status, priority, category } = req.query;
   const filter = { schoolId: req.user.schoolId };
 
-  if (status) filter.status = status;
-  if (priority) filter.priority = priority;
-  if (category) filter.category = category;
+  const status = sanitizeQueryString(req.query.status);
+  const priority = sanitizeQueryString(req.query.priority);
+  const category = sanitizeQueryString(req.query.category);
+
+  if (status) {
+    if (!isOneOf(status, VALID_STATUSES)) {
+      return res.status(400).json({ message: 'Invalid status filter' });
+    }
+    filter.status = status;
+  }
+  if (priority) {
+    if (!isOneOf(priority, VALID_PRIORITIES)) {
+      return res.status(400).json({ message: 'Invalid priority filter' });
+    }
+    filter.priority = priority;
+  }
+  if (category) {
+    if (!isOneOf(category, VALID_CATEGORIES)) {
+      return res.status(400).json({ message: 'Invalid category filter' });
+    }
+    filter.category = category;
+  }
 
   try {
-    // If not admin, do we filter issues to only the ones reported by this user?
-    // The guidelines say:
-    // Parents/Teachers: "Track issue status, receive updates, Dashboard Module: overview of reported issues"
-    // Let's allow users to see all issues in their school to increase transparency (which is a core goal!),
-    // but also allow them to filter to "My Reports".
     const { myReports } = req.query;
     if (myReports === 'true') {
       filter.reporter = req.user.id;
@@ -29,7 +50,7 @@ router.get('/', auth, async (req, res) => {
     res.json(issues);
   } catch (err) {
     console.error('Fetch issues error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -39,16 +60,13 @@ router.get('/', auth, async (req, res) => {
 router.get('/stats', auth, async (req, res) => {
   try {
     const issues = await db.issues.find({ schoolId: req.user.schoolId });
-    
+
     const stats = {
       total: issues.length,
       pending: issues.filter(i => i.status === 'pending').length,
       inProgress: issues.filter(i => i.status === 'in-progress').length,
       resolved: issues.filter(i => i.status === 'resolved').length,
-      
-      // Categorized stats
       categories: {},
-      // Priority stats
       priorities: {
         low: issues.filter(i => i.priority === 'low').length,
         medium: issues.filter(i => i.priority === 'medium').length,
@@ -63,7 +81,7 @@ router.get('/stats', auth, async (req, res) => {
     res.json(stats);
   } catch (err) {
     console.error('Fetch stats error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -76,29 +94,24 @@ router.get('/:id', auth, async (req, res) => {
     if (!issue) {
       return res.status(404).json({ message: 'Issue not found' });
     }
-    // Verify user is in the same school
     if (issue.schoolId !== req.user.schoolId) {
       return res.status(403).json({ message: 'Access denied: different school context' });
     }
     res.json(issue);
   } catch (err) {
     console.error('Fetch single issue error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
-// @route   POST api/issues
-// @desc    Report a new issue
-// @access  Private
-// Helper: validate base64 image (type + size)
 const validateBase64Image = (base64String) => {
-  if (!base64String) return { valid: true }; // no image is allowed
+  if (!base64String) return { valid: true };
 
-  // Check if it is a data URI
   const match = base64String.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9+.]+);base64,(.+)$/);
   if (!match) {
-    // If it starts with http it is an external URL – skip validation
-    if (base64String.startsWith('http')) return { valid: true };
+    if (typeof base64String === 'string' && /^https?:\/\//i.test(base64String)) {
+      return { valid: true };
+    }
     return { valid: false, message: 'Invalid image format. Must be a base64 data URI.' };
   }
 
@@ -108,10 +121,9 @@ const validateBase64Image = (base64String) => {
     return { valid: false, message: `Unsupported image type "${mimeType}". Allowed types: JPEG, PNG, WebP.` };
   }
 
-  // Calculate approximate byte size from base64 length
   const base64Data = match[2];
   const sizeInBytes = Math.ceil((base64Data.length * 3) / 4);
-  const maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+  const maxSizeBytes = 5 * 1024 * 1024;
   if (sizeInBytes > maxSizeBytes) {
     return { valid: false, message: `Image too large (${(sizeInBytes / (1024 * 1024)).toFixed(2)} MB). Maximum allowed size is 5 MB.` };
   }
@@ -119,29 +131,31 @@ const validateBase64Image = (base64String) => {
   return { valid: true };
 };
 
+// @route   POST api/issues
+// @desc    Report a new issue
+// @access  Private
 router.post('/', auth, async (req, res) => {
   const { title, description, category, location, priority, image } = req.body;
 
-  if (!title || !description || !category || !location || !priority) {
-    return res.status(400).json({ message: 'Please enter all required fields' });
+  if (!isNonEmptyString(title, 200) || !isNonEmptyString(description, 2000)
+    || !isOneOf(category, VALID_CATEGORIES) || !isNonEmptyString(location, 200)
+    || !isOneOf(priority, VALID_PRIORITIES)) {
+    return res.status(400).json({ message: 'Please enter all required fields with valid values' });
   }
 
-  // Validate uploaded image (if any)
   const imageValidation = validateBase64Image(image);
   if (!imageValidation.valid) {
     return res.status(400).json({ message: imageValidation.message });
   }
 
-  // Only store the image the user actually uploaded; null means "no image"
   const finalImage = image || null;
-
 
   try {
     const newIssue = await db.issues.create({
-      title,
-      description,
+      title: title.trim(),
+      description: description.trim(),
       category,
-      location,
+      location: location.trim(),
       priority,
       status: 'pending',
       reporter: req.user.id,
@@ -157,12 +171,12 @@ router.post('/', auth, async (req, res) => {
       ]
     });
 
-    // Notify admins about the new issue
     const admins = await db.users.find({ role: 'admin', schoolId: req.user.schoolId });
+    const priorityLabel = priority.charAt(0).toUpperCase() + priority.slice(1);
     for (const admin of admins) {
       await db.notifications.create({
         recipient: admin._id,
-        message: `New High-priority issue reported: "${title}" at ${location}.`,
+        message: `New ${priorityLabel}-priority issue reported: "${title.trim()}" at ${location.trim()}.`,
         issueId: newIssue._id
       });
     }
@@ -170,7 +184,7 @@ router.post('/', auth, async (req, res) => {
     res.status(201).json(newIssue);
   } catch (err) {
     console.error('Report issue error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
@@ -180,30 +194,42 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   const { status, assignedStaff, estimatedResolutionTime, notes } = req.body;
 
+  if (status && !isOneOf(status, VALID_STATUSES)) {
+    return res.status(400).json({ message: 'Invalid status value' });
+  }
+  if (assignedStaff !== undefined && assignedStaff !== null && !isNonEmptyString(String(assignedStaff), 200)) {
+    return res.status(400).json({ message: 'Invalid assigned staff value' });
+  }
+  if (estimatedResolutionTime !== undefined && estimatedResolutionTime !== null
+    && !isNonEmptyString(String(estimatedResolutionTime), 200)) {
+    return res.status(400).json({ message: 'Invalid estimated resolution time' });
+  }
+  if (!isNonEmptyString(notes, 1000)) {
+    return res.status(400).json({ message: 'Please provide update notes' });
+  }
+
   try {
     const issue = await db.issues.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ message: 'Issue not found' });
     }
 
-    // Verify user is authorized
     if (issue.schoolId !== req.user.schoolId) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    // Only Admin can modify repair status/assignments
     if (req.user.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied. Administrator privileges required.' });
     }
 
     const updates = {};
     if (status) updates.status = status;
-    if (assignedStaff !== undefined) updates.assignedStaff = assignedStaff;
-    if (estimatedResolutionTime !== undefined) updates.estimatedResolutionTime = estimatedResolutionTime;
+    if (assignedStaff !== undefined) updates.assignedStaff = String(assignedStaff).trim();
+    if (estimatedResolutionTime !== undefined) updates.estimatedResolutionTime = String(estimatedResolutionTime).trim();
 
     const timelineEvent = {
       status: status || issue.status,
-      notes: notes || `Update applied by Administrator.`,
+      notes: notes.trim(),
       timestamp: new Date()
     };
 
@@ -212,17 +238,17 @@ router.put('/:id', auth, async (req, res) => {
       $push: { timeline: timelineEvent }
     });
 
-    // Notify the reporter of the status update
+    const statusLabel = (status || issue.status) === 'in-progress' ? 'In Progress' : (status || issue.status);
     await db.notifications.create({
       recipient: issue.reporter,
-      message: `Your reported issue "${issue.title}" has been updated to "${status || issue.status}". Notes: ${notes || 'No notes added'}`,
+      message: `Your reported issue "${issue.title}" has been updated to "${statusLabel}". Notes: ${notes.trim()}`,
       issueId: issue._id
     });
 
     res.json(updatedIssue);
   } catch (err) {
     console.error('Update issue error:', err.message);
-    res.status(500).send('Server error');
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

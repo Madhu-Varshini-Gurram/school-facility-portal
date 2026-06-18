@@ -1,9 +1,70 @@
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Home, PlusCircle, Bell, Shield, LogOut, Wrench } from 'lucide-react';
+import { Home, PlusCircle, Bell, Shield, LogOut, Wrench, Menu, X } from 'lucide-react';
 
 export default function Navbar({ user, notifications, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const navbarRef = useRef(null);
+  const skipInitialAnimation = useRef(true);
+
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (skipInitialAnimation.current) {
+      skipInitialAnimation.current = false;
+      return;
+    }
+    setIsAnimating(true);
+    const timer = setTimeout(() => {
+      setIsAnimating(false);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    let resizeTimer;
+    function handleResize() {
+      document.body.classList.add('resize-animation-stopper');
+      setMenuOpen(false);
+      setIsAnimating(false);
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        document.body.classList.remove('resize-animation-stopper');
+      }, 400);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimer);
+      document.body.classList.remove('resize-animation-stopper');
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuOpen && navbarRef.current && !navbarRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [menuOpen]);
 
   const handleLogout = () => {
     onLogout();
@@ -12,86 +73,129 @@ export default function Navbar({ user, notifications, onLogout }) {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  const navLinks = user ? (
+    <>
+      <Link
+        to="/dashboard"
+        className={`navbar-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
+        onClick={() => setMenuOpen(false)}
+      >
+        <Home size={18} aria-hidden="true" />
+        <span>Dashboard</span>
+      </Link>
+
+      {user.role !== 'admin' && (
+        <Link
+          to="/report"
+          className={`navbar-link ${location.pathname === '/report' ? 'active' : ''}`}
+          onClick={() => setMenuOpen(false)}
+        >
+          <PlusCircle size={18} aria-hidden="true" />
+          <span>Report Issue</span>
+        </Link>
+      )}
+
+      {user.role === 'admin' && (
+        <Link
+          to="/admin"
+          className={`navbar-link ${location.pathname === '/admin' ? 'active' : ''}`}
+          onClick={() => setMenuOpen(false)}
+        >
+          <Shield size={18} aria-hidden="true" />
+          <span>Admin Panel</span>
+        </Link>
+      )}
+
+      <Link
+        to="/notifications"
+        className={`navbar-link ${location.pathname === '/notifications' ? 'active' : ''}`}
+        onClick={() => setMenuOpen(false)}
+      >
+        <div className="navbar-badge-container">
+          <Bell size={18} aria-hidden="true" />
+          {unreadCount > 0 && (
+            <span className="navbar-badge" aria-label={`${unreadCount} unread notifications`}>
+              {unreadCount}
+            </span>
+          )}
+        </div>
+        <span>Alerts</span>
+      </Link>
+
+      <div className="navbar-user">
+        <div className="navbar-avatar" aria-hidden="true">
+          {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+        </div>
+        <div className="navbar-user-info">
+          <span className="navbar-user-name">{user.name}</span>
+          <span className="navbar-user-role">
+            {user.role} ({user.schoolId})
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="btn btn-secondary navbar-logout-btn"
+          title="Log Out"
+          aria-label="Log out"
+        >
+          <LogOut size={16} aria-hidden="true" />
+        </button>
+      </div>
+    </>
+  ) : (
+    <div className="navbar-auth-actions">
+      <Link
+        to="/login"
+        className={`btn navbar-auth-btn ${location.pathname === '/login' ? 'btn-primary' : 'btn-secondary'}`}
+        onClick={() => setMenuOpen(false)}
+      >
+        Sign In
+      </Link>
+      <Link
+        to="/register"
+        className={`btn navbar-auth-btn ${location.pathname === '/register' ? 'btn-primary' : 'btn-secondary'}`}
+        onClick={() => setMenuOpen(false)}
+      >
+        Register
+      </Link>
+    </div>
+  );
+
   return (
-    <nav className="navbar">
+    <nav ref={navbarRef} className="navbar" aria-label="Main navigation">
       <div className="navbar-container">
-        <Link to="/" className="navbar-logo">
-          <Wrench size={24} className="text-primary" />
-          <span>SchoolRepair</span>
+        <Link to="/" className="navbar-logo" onClick={() => setMenuOpen(false)}>
+          <Wrench size={24} className="text-primary" aria-hidden="true" />
+          <span>School Repair</span>
         </Link>
 
-        {user ? (
-          <div className="navbar-links">
-            <Link 
-              to="/dashboard" 
-              className={`navbar-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
-            >
-              <Home size={18} />
-              <span>Dashboard</span>
-            </Link>
+        <button
+          type="button"
+          className="navbar-toggle"
+          onClick={() => setMenuOpen(prev => !prev)}
+          aria-expanded={menuOpen}
+          aria-controls="navbar-menu"
+          aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+        >
+          {menuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
 
-            {user.role !== 'admin' && (
-              <Link 
-                to="/report" 
-                className={`navbar-link ${location.pathname === '/report' ? 'active' : ''}`}
-              >
-                <PlusCircle size={18} />
-                <span>Report Issue</span>
-              </Link>
-            )}
+        <button
+          type="button"
+          className={`navbar-overlay ${menuOpen ? 'active' : ''} ${isAnimating ? 'menu-animating' : ''}`}
+          onClick={() => setMenuOpen(false)}
+          aria-label="Close menu"
+          aria-hidden={!menuOpen}
+          tabIndex={menuOpen ? 0 : -1}
+        />
 
-            {user.role === 'admin' && (
-              <Link 
-                to="/admin" 
-                className={`navbar-link ${location.pathname === '/admin' ? 'active' : ''}`}
-              >
-                <Shield size={18} />
-                <span>Admin Panel</span>
-              </Link>
-            )}
-
-            <Link 
-              to="/notifications" 
-              className={`navbar-link ${location.pathname === '/notifications' ? 'active' : ''}`}
-            >
-              <div className="navbar-badge-container">
-                <Bell size={18} />
-                {unreadCount > 0 && <span className="navbar-badge">{unreadCount}</span>}
-              </div>
-              <span>Alerts</span>
-            </Link>
-
-            <div className="navbar-user">
-              <div className="navbar-avatar">
-                {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{user.name}</span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
-                  {user.role} ({user.schoolId})
-                </span>
-              </div>
-              <button 
-                onClick={handleLogout} 
-                className="btn btn-secondary" 
-                style={{ padding: '0.4rem 0.8rem', marginLeft: '0.5rem' }}
-                title="Log Out"
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="navbar-links">
-            <Link 
-              to="/login" 
-              className={`btn btn-primary`}
-              style={{ padding: '0.5rem 1.2rem' }}
-            >
-              Sign In
-            </Link>
-          </div>
-        )}
+        <div
+          id="navbar-menu"
+          className={`navbar-links ${menuOpen ? 'active' : ''} ${isAnimating ? 'menu-animating' : ''}`}
+        >
+          {navLinks}
+        </div>
       </div>
     </nav>
   );

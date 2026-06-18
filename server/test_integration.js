@@ -65,6 +65,7 @@ async function runTests() {
   const timestamp = Date.now();
   const parentEmail = `parent_${timestamp}@school.org`;
   const adminEmail = `admin_${timestamp}@school.org`;
+  const schoolId = `SCH-${timestamp}`;
 
   try {
     // 1. Register a Parent
@@ -74,7 +75,7 @@ async function runTests() {
       email: parentEmail,
       password: 'password123',
       role: 'parent',
-      schoolId: 'SCH-90210'
+      schoolId: schoolId
     });
 
     if (regParentRes.statusCode !== 200) {
@@ -91,7 +92,7 @@ async function runTests() {
       email: adminEmail,
       password: 'adminpassword123',
       role: 'admin',
-      schoolId: 'SCH-90210'
+      schoolId: schoolId
     });
 
     if (regAdminRes.statusCode !== 200) {

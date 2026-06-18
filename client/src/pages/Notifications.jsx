@@ -1,175 +1,126 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CheckSquare, BellOff, ExternalLink, Calendar } from 'lucide-react';
+import { CheckSquare, BellOff, ExternalLink, Calendar, AlertCircle } from 'lucide-react';
+import { apiFetch } from '../api';
 
-export default function Notifications({ token, notifications, onRefreshNotifications }) {
-  const [loading, setLoading] = useState(false);
+export default function Notifications({ token, notifications, notificationsLoading, onRefreshNotifications }) {
+  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const markAsRead = async (id) => {
     try {
-      const response = await fetch(`/api/notifications/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        onRefreshNotifications();
-      }
+      await apiFetch(`/api/notifications/${id}`, { method: 'PUT' }, token);
+      onRefreshNotifications();
     } catch (err) {
-      console.error('Error marking notification read:', err);
+      setError(err.message || 'Failed to mark notification as read.');
     }
   };
 
   const markAllRead = async () => {
-    setLoading(true);
+    setActionLoading(true);
+    setError('');
     try {
-      const response = await fetch(`/api/notifications/read/all`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        onRefreshNotifications();
-      }
+      await apiFetch('/api/notifications/read/all', { method: 'PUT' }, token);
+      onRefreshNotifications();
     } catch (err) {
-      console.error('Error marking all notifications read:', err);
+      setError(err.message || 'Failed to mark all notifications as read.');
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   };
-
-  useEffect(() => {
-    onRefreshNotifications();
-  }, [token]);
 
   const unreadNotifications = notifications.filter(n => !n.read);
 
   return (
-    <div className="content-container" style={{ maxWidth: '800px' }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        marginBottom: '2.5rem'
-      }}>
+    <div className="content-container notifications-page">
+      <div className="page-header">
         <div>
-          <h1 style={{ fontSize: '2.2rem', marginBottom: '0.25rem' }}>School Alerts & Notifications</h1>
+          <h1 className="page-title">School Alerts & Notifications</h1>
           <p style={{ color: 'var(--text-secondary)' }}>
             Stay updated on repair statuses, schedules, and resolution comments for reported facilities.
           </p>
         </div>
-        
+
         {unreadNotifications.length > 0 && (
-          <button 
-            onClick={markAllRead} 
+          <button
+            type="button"
+            onClick={markAllRead}
             className="btn btn-secondary"
-            disabled={loading}
+            disabled={actionLoading || notificationsLoading}
             style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
           >
-            <CheckSquare size={16} />
-            <span>{loading ? 'Marking...' : 'Mark all as read'}</span>
+            <CheckSquare size={16} aria-hidden="true" />
+            <span>{actionLoading ? 'Marking...' : 'Mark all as read'}</span>
           </button>
         )}
       </div>
 
-      {notifications.length === 0 ? (
-        <div className="card animate-fade-in" style={{
-          textAlign: 'center',
-          padding: '4rem 2rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '1rem'
-        }}>
-          <BellOff size={48} style={{ color: 'var(--text-muted)' }} />
+      {error && (
+        <div className="alert-error" role="alert" style={{ marginBottom: '1.5rem' }}>
+          <AlertCircle size={18} aria-hidden="true" style={{ flexShrink: 0 }} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {notificationsLoading ? (
+        <div className="notifications-loading" role="status" aria-live="polite">
+          {Array(3).fill(0).map((_, idx) => (
+            <div key={idx} className="card notification-skeleton">
+              <div className="skeleton" style={{ width: '70%', height: '16px', marginBottom: '0.5rem' }} />
+              <div className="skeleton" style={{ width: '40%', height: '12px' }} />
+            </div>
+          ))}
+        </div>
+      ) : notifications.length === 0 ? (
+        <div className="card animate-fade-in empty-state">
+          <BellOff size={48} style={{ color: 'var(--text-muted)' }} aria-hidden="true" />
           <h3 style={{ fontSize: '1.4rem' }}>All caught up!</h3>
           <p style={{ color: 'var(--text-secondary)', maxWidth: '360px', margin: '0 auto' }}>
             You have no notifications. Updates on infrastructure reports and scheduling changes will appear here.
           </p>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} className="animate-fade-in">
+        <div className="notifications-list animate-fade-in">
           {notifications.map((notif) => (
-            <div 
-              key={notif._id} 
-              className="card animate-fade-in" 
-              style={{
-                padding: '1.25rem 1.5rem',
-                borderLeft: notif.read ? '1px solid var(--border-color)' : '4px solid var(--color-primary)',
-                backgroundColor: notif.read ? 'var(--bg-card)' : 'rgba(59, 130, 246, 0.04)',
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between',
-                gap: '1.5rem'
-              }}
+            <div
+              key={notif._id}
+              className={`card animate-fade-in notification-card ${notif.read ? 'notification-read' : 'notification-unread'}`}
             >
-              <div style={{ display: 'flex', gap: '1rem', flex: 1 }}>
-                {/* Visual Unread Dot indicator */}
+              <div className="notification-content">
                 {!notif.read && (
-                  <div style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: 'var(--color-primary)',
-                    marginTop: '8px',
-                    flexShrink: 0
-                  }}></div>
+                  <div className="notification-unread-dot" aria-hidden="true" />
                 )}
-                
+
                 <div style={{ flex: 1 }}>
-                  <p style={{
-                    fontSize: '0.95rem',
-                    color: notif.read ? 'var(--text-secondary)' : 'var(--text-primary)',
-                    fontWeight: notif.read ? 400 : 500,
-                    marginBottom: '0.5rem',
-                    lineHeight: '1.4'
-                  }}>
+                  <p className={`notification-message ${notif.read ? 'read' : 'unread'}`}>
                     {notif.message}
                   </p>
-                  
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    fontSize: '0.8rem',
-                    color: 'var(--text-muted)'
-                  }}>
-                    <Calendar size={12} />
+
+                  <div className="notification-timestamp">
+                    <Calendar size={12} aria-hidden="true" />
                     <span>{new Date(notif.createdAt).toLocaleString()}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Action columns */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="notification-actions">
                 {notif.issueId && (
-                  <Link 
-                    to={`/timeline/${notif.issueId}`} 
+                  <Link
+                    to={`/timeline/${notif.issueId}`}
                     className="btn btn-secondary"
                     style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
                     onClick={() => { if (!notif.read) markAsRead(notif._id); }}
                   >
                     <span>Track</span>
-                    <ExternalLink size={12} />
+                    <ExternalLink size={12} aria-hidden="true" />
                   </Link>
                 )}
 
                 {!notif.read && (
-                  <button 
+                  <button
+                    type="button"
                     onClick={() => markAsRead(notif._id)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--color-primary)',
-                      fontSize: '0.8rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
+                    className="notification-mark-read"
                   >
                     Mark read
                   </button>

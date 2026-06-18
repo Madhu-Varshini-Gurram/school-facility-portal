@@ -1,35 +1,46 @@
 /**
- * api.js — Centralised API base URL helper
- *
- * In development, VITE_API_BASE_URL is empty and Vite's proxy rewrites
- * every "/api/..." request to "http://localhost:5000/api/...".
- *
- * In production, set VITE_API_BASE_URL to your deployed backend origin
- * (e.g. "https://school-api.onrender.com") in the client's environment
- * variables. All fetch calls below will automatically prepend it.
+ * Centralised API helper.
+ * In dev, Vite proxies "/api/..." to localhost:5000.
+ * In production, set VITE_API_BASE_URL to your backend origin.
  */
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-console.log('API_BASE is', API_BASE);
+
+let onUnauthorized = null;
+
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+async function parseResponseBody(response) {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
 
 /**
- * Wrapper around fetch that:
- *  - Prepends the API base URL
- *  - Automatically sets Content-Type: application/json for JSON bodies
- *  - Returns the parsed JSON response
- *  - Throws an Error with the server's message on non-2xx responses
- *
- * @param {string} path      - API path starting with "/api/..."
- * @param {object} [options] - Standard fetch options (method, headers, body …)
- * @param {string} [token]   - Optional JWT token — added as Bearer header
+ * @param {string} path - API path starting with "/api/..."
+ * @param {object} [options] - Standard fetch options
+ * @param {string} [token] - Optional JWT Bearer token
  */
 export async function apiFetch(path, options = {}, token = null) {
   const headers = { ...(options.headers || {}) };
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  // Only set Content-Type for non-FormData bodies
   if (options.body && typeof options.body === 'string') {
     headers['Content-Type'] = 'application/json';
   }
@@ -39,16 +50,23 @@ export async function apiFetch(path, options = {}, token = null) {
     headers
   });
 
-  // Handle empty responses (e.g. 204 No Content)
-  const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  const data = await parseResponseBody(response);
 
   if (!response.ok) {
+    if (response.status === 401 && onUnauthorized) {
+      onUnauthorized();
+    }
     const message = data.message || `Request failed with status ${response.status}`;
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return data;
+}
+
+export function formatStatus(status) {
+  if (status === 'in-progress') return 'In Progress';
+  if (!status) return '';
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export default API_BASE;
