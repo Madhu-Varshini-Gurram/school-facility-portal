@@ -426,10 +426,10 @@ export default function AdminPanel({ token }) {
                     <td data-label="Category" style={{ padding: '1rem 1.5rem', textTransform: 'capitalize', color: 'var(--text-secondary)' }}>
                       {issue.category}
                     </td>
-                    <td data-label="Priority" style={{ padding: '1rem 1.5rem' }}>
+                    <td data-label="Priority" className="priority-cell" style={{ padding: '1rem 1.5rem' }}>
                       <span className={`badge badge-${issue.priority}`}>{issue.priority}</span>
                     </td>
-                    <td data-label="Status" style={{ padding: '1rem 1.5rem' }}>
+                    <td data-label="Status" className="status-cell" style={{ padding: '1rem 1.5rem' }}>
                       <span className={`badge badge-${issue.status}`}>
                         {issue.status === 'in-progress' ? 'In Progress' : issue.status}
                       </span>
